@@ -1,0 +1,4 @@
+# .env dosyalarını dışarda tut
+**/.env
+
+.DS_Store
