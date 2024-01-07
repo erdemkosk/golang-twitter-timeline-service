@@ -104,16 +104,13 @@ func (this TimelineService) GetTimelineByUserId(ctx context.Context, userID stri
 			return nil, err
 		}
 
-		// Timeline'daki tweet'leri al
 		tweetIDs := timeline.Tweets
 
-		// Tweet'leri populat et
 		populatedTweets, err := this.PopulateTweets(ctx, tweetIDs)
 		if err != nil {
 			return nil, err
 		}
 
-		// Append populatedTweets to tweets slice
 		tweets = append(tweets, populatedTweets...)
 	}
 
