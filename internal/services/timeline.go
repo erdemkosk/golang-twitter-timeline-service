@@ -15,17 +15,20 @@ import (
 type TimelineService struct {
 	timelineRepository repositories.MongoDBRepository
 	userRepository     repositories.MongoDBRepository
+	tweetRepository    repositories.MongoDBRepository
 	kafkaService       *KafkaService
 }
 
 func CreateTimelineService() *TimelineService {
 	timelineRepository := repositories.NewMongoDBRepository(database.Client.Database("twitter"), "timeline", models.Timeline{})
 	userRepository := repositories.NewMongoDBRepository(database.Client.Database("twitter"), "user", models.User{})
+	tweetRepository := repositories.NewMongoDBRepository(database.Client.Database("twitter"), "tweet", models.Tweet{})
 	kafkaService := CreateKafkaService()
 
 	timelineService := &TimelineService{
 		timelineRepository: *timelineRepository,
 		userRepository:     *userRepository,
+		tweetRepository:    *tweetRepository,
 		kafkaService:       kafkaService,
 	}
 
@@ -45,22 +48,10 @@ func CreateTimelineService() *TimelineService {
 }
 
 func (this TimelineService) InsertTweetToTimeline(tweet models.Tweet) error {
-	filterAll := bson.M{}
-
-	resultAll, err := this.userRepository.Find(context.TODO(), filterAll)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(resultAll)
-
 	objectID, err := primitive.ObjectIDFromHex(tweet.UserId)
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	fmt.Println(objectID)
 
 	filter := bson.M{"_id": objectID}
 
@@ -70,18 +61,12 @@ func (this TimelineService) InsertTweetToTimeline(tweet models.Tweet) error {
 		fmt.Println(err)
 	}
 
-	fmt.Println(result)
-
 	user, ok := result.(*models.User)
 	if !ok {
 		log.Fatal("Type Error")
 	}
 
-	fmt.Println(user)
-
 	followers := user.Followers
-
-	fmt.Println(followers)
 
 	for _, followerID := range followers {
 		filter := bson.M{"_id": followerID}
@@ -102,7 +87,7 @@ func (this TimelineService) GetTimelineByUserId(ctx context.Context, userID stri
 		return nil, err
 	}
 
-	filter := bson.M{"userId": userObjectID}
+	filter := bson.M{"_id": userObjectID}
 	userTimelines, err := this.timelineRepository.Find(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -110,9 +95,13 @@ func (this TimelineService) GetTimelineByUserId(ctx context.Context, userID stri
 
 	var tweets []models.Tweet
 	for _, userTimeline := range userTimelines {
-		timeline, ok := userTimeline.(models.Timeline)
-		if !ok {
-			return nil, fmt.Errorf("Type assertion failed")
+		var timeline models.Timeline
+		timelineBytes, err := bson.Marshal(userTimeline)
+		if err != nil {
+			return nil, err
+		}
+		if err := bson.Unmarshal(timelineBytes, &timeline); err != nil {
+			return nil, err
 		}
 
 		// Timeline'daki tweet'leri al
@@ -133,19 +122,23 @@ func (this TimelineService) GetTimelineByUserId(ctx context.Context, userID stri
 
 func (this TimelineService) PopulateTweets(ctx context.Context, tweetIDs []primitive.ObjectID) ([]models.Tweet, error) {
 	var tweets []models.Tweet
+
 	for _, tweetID := range tweetIDs {
+
 		filter := bson.M{"_id": tweetID}
-		result, err := this.userRepository.FindOne(ctx, filter)
+
+		result, err := this.tweetRepository.FindOne(ctx, filter)
+
 		if err != nil {
 			return nil, err
 		}
 
-		tweet, ok := result.(models.Tweet)
+		tweet, ok := result.(*models.Tweet)
 		if !ok {
-			return nil, fmt.Errorf("Type assertion failed")
+			log.Fatal("Type Error")
 		}
 
-		tweets = append(tweets, tweet)
+		tweets = append(tweets, *tweet)
 	}
 
 	return tweets, nil

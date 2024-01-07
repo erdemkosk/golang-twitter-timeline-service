@@ -17,7 +17,7 @@ func CreateTimelineController() *TimelineController {
 func (t TimelineController) GetTimelineByUserId(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	tweet, err := t.timelineService.GetTimelineByUserId(c.Context(), id)
+	tweets, err := t.timelineService.GetTimelineByUserId(c.Context(), id)
 
 	if err != nil {
 		return c.JSON(fiber.Map{
@@ -28,6 +28,6 @@ func (t TimelineController) GetTimelineByUserId(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"code": 200,
-		"data": tweet,
+		"data": tweets,
 	})
 }
